@@ -1,4 +1,4 @@
-// asl_recognition.js
+// asl_recognition.js - FIXED VERSION with correct paths
 class ASLRecognitionSystem {
     constructor() {
         this.model = null;
@@ -65,22 +65,39 @@ class ASLRecognitionSystem {
     async loadModel() {
         try {
             this.updateProgress(20, 'Loading AI model...');
-            this.model = await tf.loadLayersModel('./models/asl_recognition_system_v1/asl_recognition_system_v1_metadata.json');
+            
+            // FIXED: Correct path to your model files
+            console.log('Loading model from: ./model/model.json');
+            this.model = await tf.loadLayersModel('./model/model.json');
+            
             console.log('Model loaded successfully');
+            console.log('Model input shape:', this.model.inputShape);
             this.updateProgress(40, 'Model loaded successfully');
         } catch (error) {
-            throw new Error('Failed to load model: ' + error.message);
+            console.error('Model loading error:', error);
+            throw new Error('Failed to load model. Please ensure model files are present in ./model/ directory: ' + error.message);
         }
     }
     
     async loadNormalizationParams() {
         try {
             this.updateProgress(60, 'Loading normalization parameters...');
+            
+            // FIXED: Correct path to normalization parameters
+            console.log('Loading normalization params from: ./normalization_params.json');
             const response = await fetch('./normalization_params.json');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             this.normalizationParams = await response.json();
             console.log('Normalization parameters loaded');
+            console.log('Classes:', this.normalizationParams.class_names);
+            console.log('Features:', this.normalizationParams.mean.length);
             this.updateProgress(80, 'Configuration loaded');
         } catch (error) {
+            console.error('Normalization params loading error:', error);
             throw new Error('Failed to load normalization parameters: ' + error.message);
         }
     }
@@ -88,6 +105,11 @@ class ASLRecognitionSystem {
     async initializeMediaPipe() {
         try {
             this.updateProgress(90, 'Initializing hand tracking...');
+            
+            // Check if MediaPipe is available
+            if (typeof Hands === 'undefined') {
+                throw new Error('MediaPipe Hands not loaded. Check if MediaPipe scripts are included.');
+            }
             
             this.hands = new Hands({
                 locateFile: (file) => {
@@ -106,15 +128,22 @@ class ASLRecognitionSystem {
             console.log('MediaPipe initialized');
             this.updateProgress(100, 'Ready!');
         } catch (error) {
+            console.error('MediaPipe initialization error:', error);
             throw new Error('Failed to initialize MediaPipe: ' + error.message);
         }
     }
     
     async startCamera() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 640, height: 480 }
-            });
+            const constraints = {
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                }
+            };
+            
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             
             this.webcamElement.srcObject = stream;
             this.webcamElement.addEventListener('loadeddata', () => {
@@ -128,7 +157,8 @@ class ASLRecognitionSystem {
             this.isRunning = true;
             
         } catch (error) {
-            this.showError('Failed to access camera: ' + error.message);
+            console.error('Camera access error:', error);
+            this.showError('Failed to access camera. Please ensure camera permissions are granted and camera is not in use by another application.');
         }
     }
     
@@ -172,9 +202,16 @@ class ASLRecognitionSystem {
     startRecognition() {
         if (!this.isRunning) return;
         
+        // Check if Camera class is available
+        if (typeof Camera === 'undefined') {
+            console.error('MediaPipe Camera class not available');
+            this.showError('MediaPipe Camera utilities not loaded. Please check internet connection.');
+            return;
+        }
+        
         this.camera = new Camera(this.webcamElement, {
             onFrame: async () => {
-                if (this.isRunning) {
+                if (this.isRunning && this.hands) {
                     await this.hands.send({ image: this.webcamElement });
                 }
             }
@@ -198,8 +235,13 @@ class ASLRecognitionSystem {
             const landmarks = results.multiHandLandmarks[0];
             
             // Draw hand landmarks
-            this.drawConnectors(this.canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
-            this.drawLandmarks(this.canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
+            if (typeof drawConnectors !== 'undefined' && typeof HAND_CONNECTIONS !== 'undefined') {
+                drawConnectors(this.canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                drawLandmarks(this.canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
+            } else {
+                // Fallback: draw simple landmarks
+                this.drawSimpleLandmarks(landmarks);
+            }
             
             // Extract features
             const features = this.extractFeatures(landmarks);
@@ -221,16 +263,29 @@ class ASLRecognitionSystem {
         
         // Update FPS
         this.updateFPS();
+    }
+    
+    drawSimpleLandmarks(landmarks) {
+        // Fallback method if MediaPipe drawing utils not available
+        this.canvasCtx.fillStyle = '#FF0000';
         
-        // Continue recognition loop
-        if (this.isRunning) {
-            requestAnimationFrame(() => this.onResults(results));
+        for (const landmark of landmarks) {
+            this.canvasCtx.beginPath();
+            this.canvasCtx.arc(
+                landmark.x * this.canvasElement.width,
+                landmark.y * this.canvasElement.height,
+                3,
+                0,
+                2 * Math.PI
+            );
+            this.canvasCtx.fill();
         }
     }
     
     extractFeatures(landmarks) {
         const features = [];
         
+        // Extract x, y coordinates for all 21 landmarks
         for (let i = 0; i < landmarks.length; i++) {
             features.push(landmarks[i].x);
             features.push(landmarks[i].y);
@@ -240,13 +295,22 @@ class ASLRecognitionSystem {
     }
     
     normalizeFeatures(features) {
-        if (!this.normalizationParams) return features;
+        if (!this.normalizationParams) {
+            console.warn('Normalization parameters not loaded, using raw features');
+            return features;
+        }
         
         const normalized = [];
         const { mean, std } = this.normalizationParams;
         
+        // Ensure we have the right number of features
+        if (features.length !== mean.length) {
+            console.warn(`Feature length mismatch: got ${features.length}, expected ${mean.length}`);
+            return features;
+        }
+        
         for (let i = 0; i < features.length; i++) {
-            normalized[i] = (features[i] - mean[i]) / std[i];
+            normalized[i] = (features[i] - mean[i]) / (std[i] + 1e-8); // Add small epsilon to avoid division by zero
         }
         
         return normalized;
@@ -255,7 +319,8 @@ class ASLRecognitionSystem {
     async makePrediction() {
         try {
             // Prepare input tensor
-            const inputTensor = tf.tensor3d([this.sequenceBuffer], [1, this.sequenceLength, 42]);
+            const inputShape = [1, this.sequenceLength, 42]; // [batch, time, features]
+            const inputTensor = tf.tensor3d([this.sequenceBuffer], inputShape);
             
             // Make prediction
             const prediction = this.model.predict(inputTensor);
@@ -267,7 +332,7 @@ class ASLRecognitionSystem {
             const predictedLetter = this.normalizationParams.class_names[maxProbIndex];
             
             // Update UI only if confidence is high enough
-            if (confidence > 0.7) {
+            if (confidence > 0.6) { // Lowered threshold for better responsiveness
                 this.updatePrediction(predictedLetter, confidence);
                 this.addToHistory(predictedLetter, confidence);
                 this.highlightAlphabet(predictedLetter);
@@ -345,37 +410,6 @@ class ASLRecognitionSystem {
         }
     }
     
-    drawConnectors(ctx, landmarks, connections, style) {
-        ctx.strokeStyle = style.color;
-        ctx.lineWidth = style.lineWidth;
-        
-        for (const connection of connections) {
-            const start = landmarks[connection[0]];
-            const end = landmarks[connection[1]];
-            
-            ctx.beginPath();
-            ctx.moveTo(start.x * ctx.canvas.width, start.y * ctx.canvas.height);
-            ctx.lineTo(end.x * ctx.canvas.width, end.y * ctx.canvas.height);
-            ctx.stroke();
-        }
-    }
-    
-    drawLandmarks(ctx, landmarks, style) {
-        ctx.fillStyle = style.color;
-        
-        for (const landmark of landmarks) {
-            ctx.beginPath();
-            ctx.arc(
-                landmark.x * ctx.canvas.width,
-                landmark.y * ctx.canvas.height,
-                style.lineWidth,
-                0,
-                2 * Math.PI
-            );
-            ctx.fill();
-        }
-    }
-    
     updateProgress(percent, message) {
         const progressFill = document.getElementById('progress-fill');
         const loadingText = document.querySelector('.loading-content p');
@@ -400,7 +434,7 @@ class ASLRecognitionSystem {
     }
 }
 
-// Hand connections for MediaPipe
+// Hand connections for MediaPipe (fallback if not loaded from CDN)
 const HAND_CONNECTIONS = [
     [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
     [0, 5], [5, 6], [6, 7], [7, 8], // Index finger
@@ -417,6 +451,7 @@ function closeModal() {
 
 // Initialize the system when page loads
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Initializing ASL Recognition System...');
     new ASLRecognitionSystem();
 });
 
