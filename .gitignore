@@ -1,4 +1,4 @@
-# Python files (if you keep original code)
+# Python files
 __pycache__/
 *.py[cod]
 *.so
