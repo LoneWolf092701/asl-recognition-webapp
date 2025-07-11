@@ -1,0 +1,30 @@
+# Python files (if you keep original code)
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+venv/
+env/
+data/
+
+# Model files (if too large)
+# Uncomment if your model files are > 100MB
+# model/weights.bin
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
