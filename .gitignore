@@ -7,8 +7,7 @@ venv/
 env/
 data/
 
-# Model files (if too large)
-# Uncomment if your model files are > 100MB
+# Model files
 # model/weights.bin
 
 # IDE files
