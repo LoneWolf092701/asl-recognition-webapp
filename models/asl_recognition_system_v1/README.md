@@ -4,9 +4,9 @@
 This is a complete American Sign Language (ASL) alphabet recognition system built with MediaPipe and LSTM neural networks.
 
 ## Performance
-- **Accuracy**: 98.3%
-- **F1-Score**: 0.984
-- **Prediction Time**: 3.5ms
+- **Accuracy**: 98.5%
+- **F1-Score**: 0.986
+- **Prediction Time**: 2.1ms
 - **Real-time Capable**: Yes (25+ FPS)
 
 ## Files Included

@@ -15,6 +15,7 @@ data/
 .idea/
 *.swp
 *.swo
+*.mp4
 
 # OS files
 .DS_Store
