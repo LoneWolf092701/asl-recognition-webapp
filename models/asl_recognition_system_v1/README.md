@@ -4,9 +4,9 @@
 This is a complete American Sign Language (ASL) alphabet recognition system built with MediaPipe and LSTM neural networks.
 
 ## Performance
-- **Accuracy**: 98.5%
-- **F1-Score**: 0.986
-- **Prediction Time**: 2.1ms
+- **Accuracy**: 84.8%
+- **F1-Score**: 0.852
+- **Prediction Time**: 0.4ms
 - **Real-time Capable**: Yes (25+ FPS)
 
 ## Files Included
@@ -44,7 +44,7 @@ with open('asl_recognition_system_v1_preprocessor.pkl', 'rb') as f:
 ```
 
 ## Classes Supported
-A, B, C, E, G, H, I, J, K, L, S, T, U, V, W, Y, Z
+A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z
 
 ## Notes
 - Input sequences must be 30 frames long
